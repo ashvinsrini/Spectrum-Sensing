@@ -451,9 +451,25 @@ hop    = round(0.25*Nwin);                        % 25% hop
 firOrd = 256;                                     % band-isolation filter order (tune 128..512)
 
 % ---------- 2) Loop over detected stripes, isolate and classify ----------
+% ---- Add RADAR as an extra hypothesis on top of your OFDM (NR/LTE/WLAN) tests ----
+% Assumes you already have:
+%  - techList = {'NR','LTE','WLAN'}  and lagList = [L_NR L_LTE L_WLAN]
+%  - radarPulseTrainScore.m on path
+%  - extractStripeTimeSeries, slidingCpCorrCoeffFast already defined
+
 K = size(bandsHz,1);
-stripeLabels = strings(K,1);
-stripeScores = zeros(K, numel(techList));
+
+stripeLabels = strings(K,1);                     % final label per stripe
+stripeScores = zeros(K, numel(techList));        % CP scores only (NR/LTE/WLAN)
+stripeRadar  = zeros(K,1);                       % radar score
+stripePRI_ms = nan(K,1);                         % estimated PRI (ms)
+stripeDuty   = nan(K,1);                         % pulse duty cycle
+
+% RADAR detection knobs (tune if needed)
+PRI_range_s = [1e-3 2e-3];        % your radar PRI range
+PW_range_s  = [50e-6 100e-6];     % your pulse width range
+tauRadar    = 0.25;               % radar periodicity score threshold (0.2..0.5)
+dutyMax     = 0.20;               % radar should be low-duty compared to OFDM
 
 for k = 1:K
     band = bandsHz(k,:);  % [fL fH] in Hz
@@ -461,22 +477,48 @@ for k = 1:K
     % (A) isolate stripe in time series (mix down + LPF)
     [xBand, fcHz] = extractStripeTimeSeries(xMix, FsCommon, band(1), band(2), firOrd);
 
-    % (B) CP-correlation score for each candidate lag (sliding, normalized)
+    % (B) CP-correlation score for each OFDM candidate (sliding, normalized)
     scores = zeros(1,numel(techList));
     for j = 1:numel(techList)
         L = lagList(j);
         [rhoVec, tRho] = slidingCpCorrCoeffFast(xBand, FsCommon, L, Nwin, hop);
         scores(j) = mean(rhoVec);     % summary score for this stripe vs this lag
     end
-
     stripeScores(k,:) = scores;
 
-    % (C) pick technology with highest score
-    [~,idxMax] = max(scores);
-    stripeLabels(k) = techList{idxMax};
+    % (B2) RADAR periodic pulse-train score (independent of CP)
+    % ---- FAST RADAR TEST: downsample envelope to ~2 MHz before PRI search ----
+    FsEnv = 2e6;                                  % 1..5 MHz is fine
+    D = max(1, round(FsCommon/FsEnv));            % decimation factor
+    FsD = FsCommon / D;
+    
+    % anti-alias smoothing on envelope, then decimate
+    e = abs(xBand).^2;                             % envelope power
+    eSm = movmean(e, D);                           % simple LPF for decimation
+    eD  = eSm(1:D:end);                            % decimated envelope
+    
+    % feed as a "signal" (function uses abs(.)^2 internally anyway)
+    xBandD = sqrt(eD);                             % real is ok
 
-    fprintf('Stripe %d (%.1f..%.1f MHz, fc=%.1f MHz) ->  NR:%.3g  LTE:%.3g  WLAN:%.3g  => %s\n', ...
-        k, band(1)/1e6, band(2)/1e6, fcHz/1e6, scores(1), scores(2), scores(3), stripeLabels(k));
+   [scoreRadar, priHat_s, duty, ~] = radarPulseTrainScore(xBandD, FsD, PRI_range_s, PW_range_s);
+    stripeRadar(k)  = scoreRadar;
+    stripePRI_ms(k) = 1e3*priHat_s;
+    stripeDuty(k)   = duty;
+
+    % (C) Decide label: RADAR first (if confident), else OFDM argmax
+    if (scoreRadar >= tauRadar) && (duty <= dutyMax)
+        stripeLabels(k) = "RADAR";
+    else
+        [~,idxMax] = max(scores);
+        stripeLabels(k) = techList{idxMax};   % NR/LTE/WLAN
+    end
+
+    % (C2) Print summary
+    fprintf(['Stripe %d (%.1f..%.1f MHz, fc=%.1f MHz) -> ', ...
+             'NR:%.3g  LTE:%.3g  WLAN:%.3g | RADAR:%.3g (PRIhat=%.2f ms, duty=%.3f) => %s\n'], ...
+        k, band(1)/1e6, band(2)/1e6, fcHz/1e6, ...
+        scores(1), scores(2), scores(3), ...
+        scoreRadar, stripePRI_ms(k), stripeDuty(k), stripeLabels(k));
 
     % (D) quick time-series plot of recovered stripe (envelope)
     figure;
@@ -484,31 +526,23 @@ for k = 1:K
     tSig  = (0:Nplot-1).'/FsCommon;
     plot(tSig*1e3, abs(xBand(1:Nplot)), 'LineWidth', 1.0); grid on;
     xlabel('Time (ms)'); ylabel('|x_{band}[n]|');
-    title(sprintf('Recovered Stripe %d (fc=%.1f MHz) envelope', k, fcHz/1e6));
+    title(sprintf('Recovered Stripe %d (fc=%.1f MHz) envelope | Label=%s', k, fcHz/1e6, stripeLabels(k)));
 
-
-    NfftSpec = 2^nextpow2(numel(xBand));      % or set fixed like 2^18 for speed
+    % (D-FFT) spectrum centered at fcHz (global axis)
+    NfftSpec = 2^nextpow2(numel(xBand));
     X = fftshift(fft(xBand, NfftSpec));
-    fSpec = (-NfftSpec/2:NfftSpec/2-1).' * (FsCommon/NfftSpec);  % baseband freq (Hz)
-    
+    fSpec = (-NfftSpec/2:NfftSpec/2-1).' * (FsCommon/NfftSpec);  % baseband (Hz)
+
     Pdb = 10*log10(abs(X).^2 + 1e-12);
-    Pdb = Pdb - max(Pdb);                    % normalize peak to 0 dB
-    
-    % Shift frequency axis back to the stripe center frequency
-    fGlobal = fSpec + fcHz;                  % Hz
-    
+    Pdb = Pdb - max(Pdb);
+    fGlobal = fSpec + fcHz;
+
     figure;
-    plot(fGlobal/1e6, Pdb, 'LineWidth', 1.1);
-    grid on;
-    xlabel('Frequency (MHz)');
-    ylabel('Magnitude (dB, normalized)');
-    title(sprintf('Stripe %d: FFT spectrum centered around f_c = %.1f MHz', k, fcHz/1e6));
+    plot(fGlobal/1e6, Pdb, 'LineWidth', 1.1); grid on;
+    xlabel('Frequency (MHz)'); ylabel('Magnitude (dB, normalized)');
+    title(sprintf('Stripe %d: FFT spectrum around f_c=%.1f MHz | Label=%s', k, fcHz/1e6, stripeLabels(k)));
 
-
-
-
-
-    % (E)  plot normalized CP-corr curves for all tech lags
+    % (E) plot normalized CP-corr curves for OFDM lags
     figure; hold on; grid on;
     for j = 1:numel(techList)
         L = lagList(j);
@@ -517,8 +551,17 @@ for k = 1:K
     end
     xlabel('Time (ms)'); ylabel('Normalized CP-corr coeff (windowed)');
     legend(techList, 'Location','best');
-    title(sprintf('Stripe %d: CP-corr vs candidate lags', k));
+    title(sprintf('Stripe %d: CP-corr vs candidate lags | Label=%s', k, stripeLabels(k)));
+
+    % (E2) OPTIONAL: visualize radar pulse-mask periodicity score trace
+    % If you want a quick check only when labeled RADAR, uncomment:
+    %{
+    if stripeLabels(k) == "RADAR"
+        fprintf('  -> RADAR confirmed: PRIhat=%.2f ms, duty=%.3f\n', stripePRI_ms(k), stripeDuty(k));
+    end
+    %}
 end
+
 
 % stripeLabels(k) now tells you which technology each stripe likely is.
 
