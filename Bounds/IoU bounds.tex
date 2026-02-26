@@ -1,0 +1,499 @@
+\documentclass[conference]{IEEEtran}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{amssymb} 
+\usepackage{cite}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{float}
+\usepackage{siunitx}
+\usepackage{enumitem}
+\usepackage{booktabs,tabularx}
+\usepackage{amsmath,amssymb,amsfonts,amsthm}
+\usepackage{bm}
+\usepackage{mathtools}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+\title{Intersection over Union Bounds (\textcolor{blue}{Proposal})}
+% ---------- propos environments ----------
+%\newtheorem{propos}{propos}
+\newtheorem{propos}{Proposition}
+
+\newtheorem{lemma}{Lemma}
+\newtheorem{assumption}{Assumption}
+\newtheorem{definition}{Definition}
+\newtheorem{corollary}{Corollary}
+\newtheorem{remark}{Remark}
+
+% ---------- Convenience macros ----------
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Prb}{\mathbb{P}}
+\newcommand{\1}{\mathbf{1}}
+\newcommand{\norm}[1]{\left\lVert #1 \right\rVert}
+\newcommand{\inner}[2]{\left\langle #1,\,#2 \right\rangle}
+\author{
+\IEEEauthorblockN{Ashvin Srinivasan}
+\IEEEauthorblockA{Department of Information and Communication Engineering\\
+Aalto University\\
+Email: ashvin.1.srinivasan@aalto.fi}
+}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We derive two theoretical robustness bounds for spectrogram segmentation in the context of wideband spectrum sensing, where small nuisance transformations, such as timing jitter or frequency drift, are modeled as smooth actions. Specifically, we establish: (i) a bound on the inflation of the expected per-pixel 0--1 classification risk, and (ii) a corresponding bound on the degradation of Intersection-over-Union (IoU), a key metric for signal localization. These results quantify how sensitive segmentation models are to realistic spectrum distortions and hold for standard DeepLab/UNet architectures trained with cross-entropy, without requiring any architectural changes. The bounds provide actionable insight into the stability of signal detection pipelines under physical perturbations common in dynamic RF environments.
+
+\end{abstract}
+
+\section{Problem Setup and Notation}
+Let $x\in\mathcal{X}\subset\R^{T\times F\times C}$ be a spectrogram-like input and $y\in\{1,\dots,K\}^{T\times F}$ the pixelwise ground-truth labels. A segmentation network outputs logits $f:\mathcal{X}\!\to\!\R^{K\times T\times F}$ with per-pixel prediction
+\[
+\hat y(x)_p \triangleq \arg\max_{k\in\{1,\dots,K\}} f_k(x)_p,
+\]
+for pixel $p$ (indexing a time--frequency bin). We denote by $\ell(\hat y(x)_p,y(p))=\1\{\hat y(x)_p\neq y(p)\}$ the per-pixel 0--1 loss. \textcolor{blue}{The expression defines the per-pixel 0--1 loss, which evaluates to 1 if the predicted class label \( \hat{y}(x)_p \) at pixel \( p \) differs from the true class label \( y(p) \), and 0 otherwise. This loss function is used to measure misclassification at the pixel level in a multi-class segmentation task, regardless of which specific class is involved}. We define the expected pixel error rate (``risk'')
+\[
+\mathcal{R} \triangleq \E\big[\ell(\hat y(x)_p,y(p))\big],
+\]
+where the expectation is with respect to the data distribution and a uniformly sampled pixel. \textcolor{blue}{expectation is averaging over many images (or signals), and for each image, over a randomly selected pixel. In practice, this corresponds to computing the mean per-pixel error across the dataset.\(\E = \E_{x,y \sim P_{data}} \E_p\sim U(1, TF) = \E_{(x,y),p}\)}
+
+A small nuisance acts on inputs,  $g\!\cdot\!x$, $g\in G$, with identity $e\in G$. Writing $G$ (random variable) for a random nuisance, we are interested in the \emph{risk inflation}
+\[
+\Delta\mathcal{R} \triangleq \E\!\left[\ell(\hat y(G\!\cdot\!x)_p, y(p))\right] - \E\!\left[\ell(\hat y(x)_p, y(p))\right],
+\]
+and in how this translates to a drop in Intersection-over-Union (IoU).
+\textcolor{blue}{A nuisance in this context refers to a transformation applied to the input \( x \) that does not alter its true label \( y(p) \), but may cause a model to misclassify it. These transformations are modeled by a smooth Lie group \( G \), such as time or frequency shifts common in spectrum sensing. The action \( g \cdot x \), for \( g \in G \), represents applying such a transformation to the input, with \( e \in G \) denoting the identity (no change). The term \( \Delta \mathcal{R} \) quantifies risk inflation, the increase in expected pixel-wise 0–1 loss due to a random nuisance \( G \). It measures the model's sensitivity to benign, label-preserving variations. A small \( \Delta \mathcal{R} \) implies robustness, which is desirable in real-world settings like FR3 spectrum monitoring, where signals often experience minor but unavoidable distortions.}
+\textcolor{red}{Here $G$ denotes a random transformation in the group $\mathcal{G}$ (e.g., time shift, frequency drift, small time--frequency warp) acting on the input spectrogram via $x \mapsto G \cdot x$. We refer to $G$ as a \emph{nuisance} parameter because it changes the observed input $G \cdot x$, but does not change the ground-truth label at pixel $p$ (the segmentation $y(p)$). Moreover, $G$ is not itself the quantity of interest: our goal is not to estimate $G$, but rather to obtain correct predictions $f_k(G \cdot x)_p$ that are robust to such transformations. In the classical statistical sense, $G$ is therefore a latent/random factor that affects the data and the logits $f_k(G \cdot x)_p$, but is not a parameter we wish to infer.
+}
+
+
+\section{Assumptions}
+We now state explicit assumptions used in the propositions.
+
+\begin{assumption}[Smooth small-deformation bound]\label{ass:deform}
+Let $\mathcal{G}$ be a family of time–frequency transformations acting on input
+spectrograms via $x \mapsto g \cdot x$.
+There exists $\rho > 0$ such that for each sample $x$ there is a constant
+$C_x > 0$ with
+\begin{equation}
+\label{eq:deform-bound}
+  \|g \cdot x - x\|_2 \le C_x \, d_{\mathcal{G}}(e,g)
+  \quad \text{for all } g \in \mathcal{G} \text{ with } d_{\mathcal{G}}(e,g) \le \rho.
+\end{equation}
+\end{assumption}
+
+
+\textcolor{blue}{Assumption~\ref{ass:deform} formalizes the idea that small
+nuisance transformations of the time--frequency plane (such as slight
+time shifts, frequency offsets, or mild rescalings) induce only bounded
+changes in the input spectrogram. The set $G$ collects such
+transformations, $e$ is the identity (no change), and $d_\mathcal{G}(e,G)$ is a
+scalar that measures how large the transformation $g$ is (for example,
+the Euclidean norm of its parameter vector). The assumption states that,
+whenever this magnitude $d_\mathcal{G}(e,G)$ is small enough, the resulting change
+in the sampled input $x$ (measured in Euclidean norm) is at most
+proportional to $d_\mathcal{G}(e,G)$, with a proportionality constant $C_x$ that
+may depend on the particular sample. No additional differential-geometric
+structure is required; we only use that $g\!\cdot\!x$ is a well-defined
+transformed version of $x$ and that $d_G$ behaves as a reasonable measure
+of transformation size.}
+\textcolor{red}{Assumption~1 models $\mathcal{G}$ as a family of time–frequency transformations,
+i.e., a set of maps $g:\mathcal{X}\to\mathcal{X}$ (typically forming a group with
+identity $e$) acting on inputs via $x \mapsto g\cdot x$. For each sample
+$x \in \mathcal{X}$ there exists a constant $C_x > 0$ such that, for all
+``small'' transformations with $d_{\mathcal{G}}(e,g) \le \rho$,
+\(
+  \|g\cdot x - x\|_2 \;\le\; C_x\, d_{\mathcal{G}}(e,g).
+\)
+The factor $d_{\mathcal{G}}(e,g)$ measures only the size of the transformation in
+the group, while $C_x$ captures how sensitive the particular spectrogram $x$ is
+to such perturbations. The universal radius $\rho > 0$ defines a ball around the
+identity in transformation space where the action is locally Lipschitz; in
+Assumption~4 we require the random nuisance $G$ to be supported inside this ball(ie, \(p(d_{\mathcal{G}}(e,G)) \leq \rho =  1\)),
+so that $d_{\mathcal{G}}(e,G) \le \rho$ almost surely. The quantity $d_{\mathcal{G}}(e,g)$ is a scalar measure of how large the
+transformation $g \in \mathcal{G}$ is. If transformations are parameterized by
+a vector $\theta(g) \in \mathbb{R}^m$ (e.g., $\theta(g) = (\Delta t,\Delta f)$
+for time and frequency shifts), a natural choice is
+$d_{\mathcal{G}}(e,g) = \|\theta(g)\|_2$ or $d_{\mathcal{G}}(e,g) =
+|\Delta t| + |\Delta f|$. More generally, if $\mathcal{G}$ is a Lie group,
+$d_{\mathcal{G}}$ could be any geodesic distance on the group. In this work we
+keep $d_{\mathcal{G}}$ abstract and only require that it is nonnegative, equals
+zero at the identity $e$, and that Assumption~1's Lipschitz bound holds in
+terms of this scalar. Intuitively, $d_{\mathcal{G}}(e,g)$ answers: ``how big is
+this time/frequency distortion?'', measured in whatever normalized units (e.g.,
+seconds and hertz, or their Euclidean norm) are appropriate for the chosen
+parameterization.
+}
+\begin{assumption}[Logit-Lipschitz network]\label{ass:lips}
+The logit map $f:\mathcal{X}\to\R^{K\times T\times F}$ is globally $L$-Lipschitz\cite{CisseSec3.3}:
+\begin{equation}
+\label{eq:lips}
+\norm{f(x')-f(x)}_2 \;\le\; L\,\norm{x'-x}_2,\quad \forall x,x'\in\mathcal{X}.
+\end{equation}
+\end{assumption}
+
+\textcolor{blue}{In Assumption 2 we use a single Lipschitz constant 
+L for the logit map because this is a property we can enforce by design (e.g. spectral normalization / Parseval networks), and standard results guarantee a global Lipschitz bound for the network. In contrast, Assumption 1 describes the physical  action $g.x$. For a smooth action we only get a local Lipschitz constant around the identity for each fixed sample $x$; there is no reason to expect a uniform constant over all $x$ on a non-compact data space. To keep the nuisance model realistic and as weak as possible, we allow a per-sample constant $C_x$ and only assume $E[Cx]<\infty$. A global constant would just be the special case $C_x = C$ but that would be a stronger condition and often not relaisitc. If the group action admits a uniform bound $||g.x - x||_2 \leq C_x d_\mathcal{G}(e,G)$ then all results below hold with  $E[C_x]$ replaced by C, we have  more general per-sample form to avoid imposing an unnecessary global bound.}
+
+\begin{assumption}[Margin]\label{ass:margin}
+For pixel $p$ with true class $y(p)$, define the margin
+\begin{equation}
+\label{eq:margin}
+\gamma_p(x) \triangleq f_{y(p)}(x)_p - \max_{k\neq y(p)} f_k(x)_p.
+\end{equation}
+For a chosen threshold $\gamma_0>0$, let $\mathcal{M}_{\gamma_0}$ be the event $\{\gamma_p(x)\ge \gamma_0\}$ and
+\begin{equation}
+\label{eq:etadef}
+\eta(\gamma_0) \triangleq \Prb\!\left(\neg\mathcal{M}_{\gamma_0}\right)
+\end{equation}
+the fraction of \emph{low-margin} pixels.
+\end{assumption}
+\textcolor{blue}{Assumption~3 introduces the concept of margin at each pixel, defined as the difference between the logit assigned to the true class and the highest logit assigned to any incorrect class. This margin, denoted \( \gamma_p(x) \), reflects the model's confidence in its prediction at pixel \( p \). A large positive margin implies high confidence and robustness to small perturbations, while a negative margin indicates misclassification. By choosing a threshold \( \gamma_0 > 0 \), we define the event that a pixel has sufficient margin, and the quantity \( \eta(\gamma_0) \) captures the fraction of pixels that are either already misclassified or are close to decision boundaries (i.e., low-margin). This assumption enables the separation of vulnerable pixels from confident ones, which is crucial for bounding the model's sensitivity to input distortions.
+}
+\begin{assumption}[Nuisance statistics]\label{ass:nuis}
+The random nuisance $G$ is independent of $(x,y)$ and supported within the small-deformation regime of \eqref{eq:deform-bound}. Let
+\begin{equation}
+\label{eq:mu1}
+\mu_1 \triangleq \E\!\left[d_\mathcal{G}(e,G)\right] < \infty.
+\end{equation}
+Optionally, we will also consider a sub-Gaussian tail: $\Prb\{d_\mathcal{G}(e,G)\ge t\}\le \exp\!\left(-t^2/(2\sigma^2)\right)$ for some $\sigma>0$ \cite{SubGaussian}.
+\end{assumption}
+\textcolor{blue}{Assumption~4 models the nuisance transformation \( G \) as a random variable that is independent of the data sample \((x, y)\) and constrained to the small-deformation regime. This captures the realistic scenario in spectrum sensing where input perturbations, such as timing offsets, frequency drifts, or oscillator phase noise, are small, stochastic, and unrelated to the signal class. The assumption that \( G \) has bounded mean deformation ensures that the average size of such perturbations is finite, which is reasonable given modern synchronization and calibration in RF front-ends. Additionally, assuming a sub-Gaussian tail for \( d_G(e, G) \) reflects the empirical observation that such physical impairments exhibit rapidly decaying probability for large deviations, due to hardware constraints. Sub-Gaussianity enables exponentially decaying bounds on risk inflation, making it a reasonable assumption for analyzing the robustness of classification models under realistic spectrum distortions.
+}
+
+\section{Lemmas}
+\begin{lemma}[Logit change under nuisance]\label{lem:logit-change}
+Under Assumptions~\ref{ass:deform} and \ref{ass:lips}, for any pixel $p$ and class $k$,
+\begin{equation}
+\label{eq:logit-change}
+\big| f_k(G\!\cdot\!x)_p - f_k(x)_p \big| \;\le\; L\, C_x \, d_\mathcal{G}(e,G) .
+\end{equation}
+\end{lemma}
+\begin{proof}
+Apply \eqref{eq:lips} with $x'=G\!\cdot\!x$ and $x$, then apply \eqref{eq:deform-bound}:
+\[
+\norm{f(G\!\cdot\!x)-f(x)}_2 \le L \norm{G\!\cdot\!x-x}_2 \le L C_x d_\mathcal{G}(e,G).
+\]
+The bound holds componentwise in particular for the scalar entry $(k,p)$.
+\end{proof}
+\begin{lemma}[Margin stability implies label stability]\label{lem:margin-stability}
+Let $p$ be a pixel with true class $y\equiv y(p)$ and logits $f_k(x)_p$.
+Define the logit margin \cite{Tsuzuku2018}
+\begin{equation}\label{eq:def_margin}
+\gamma_p(x)\triangleq f_{y}(x)_p-\max_{k\neq y} f_k(x)_p .
+\end{equation}
+If $\gamma_p(x)\ge \gamma_0>0$ and $2LC_x\,d_\mathcal{G}(e,G)<\gamma_0$, then the predicted
+label at $p$ is unchanged by the nuisance:
+\[
+\arg\max_{k} f_k(G\!\cdot\!x)_p \;=\; \arg\max_{k} f_k(x)_p \;=\; y .
+\]
+\end{lemma}
+
+\begin{proof}
+By the definition in \eqref{eq:def_margin},
+\begin{equation}\label{eq:true-wins}
+f_{y}(x)_p > \max_{k\neq y} f_k(x)_p
+\ \Rightarrow\ 
+\arg\max_{k} f_k(x)_p = y .
+\end{equation}
+Let $d \triangleq d_\mathcal{G}(e,G)$. By Lemma~\ref{lem:logit-change}, for every class $k$,
+\begin{equation}\label{eq:logit-step}
+\big|\,f_k(G\!\cdot\!x)_p - f_k(x)_p\,\big| \le L C_x d .
+\end{equation}
+
+Applying \eqref{eq:logit-step} with $k=y$ yields a lower bound on the true-class logit under the nuisance:
+\begin{equation}\label{eq:true-lb}
+f_{y}(G\!\cdot\!x)_p \ge f_{y}(x)_p - L C_x d .
+\end{equation}
+For any $k\neq y$, \eqref{eq:logit-step} gives $f_k(G\!\cdot\!x)_p \le f_k(x)_p + L C_x d$; maximizing over $k\neq y$ then implies
+\begin{equation}\label{eq:comp-ub}
+\max_{k\neq y} f_k(G\!\cdot\!x)_p \le \max_{k\neq y} f_k(x)_p + L C_x d .
+\end{equation}
+
+Subtracting \eqref{eq:comp-ub} from \eqref{eq:true-lb} compares the post-nuisance true logit to the strongest competitor:
+\begin{align}
+& f_{y}(G\!\cdot\!x)_p - \max_{k\neq y} f_k(G\!\cdot\!x)_p \nonumber\\
+&\quad \ge \big(f_{y}(x)_p - L C_x d\big)
+          - \big(\max_{k\neq y} f_k(x)_p + L C_x d\big) \nonumber\\
+&\quad = \underbrace{f_{y}(x)_p - \max_{k\neq y} f_k(x)_p}_{=\ \gamma_p(x)}
+          \;-\; 2 L C_x d . \label{eq:post-gap}
+\end{align}
+
+Under the small-nuisance condition $2 L C_x d < \gamma_0 \le \gamma_p(x)$, the right-hand side of \eqref{eq:post-gap} is strictly positive, hence
+\[
+f_{y}(G\!\cdot\!x)_p \;>\; \max_{k\neq y} f_k(G\!\cdot\!x)_p ,
+\]
+which shows that $y$ still attains the argmax after applying $G$ and therefore $\arg\max_{k} f_k(G\!\cdot\!x)_p = y$.
+
+Finally, we note that the identity of the runner-up class (i.e., the maximizer over $\{f_k(\cdot)_p:k\neq y\}$) may change between $x$ and $G\!\cdot\!x$. Using the maximum in \eqref{eq:comp-ub} covers this worst case, so the conclusion holds regardless of which competitor is strongest.
+\end{proof}
+
+\section{Risk Inflation Bound}
+\begin{propos}[Risk inflation under small nuisances]\label{thm:risk-inflation}
+Under Assumptions~\ref{ass:deform}--\ref{ass:nuis}, for any $\gamma_0>0$,
+\begin{equation}
+\label{eq:risk-markov}
+\Delta\mathcal{R}
+\;\le\;
+\eta(\gamma_0) \;+\; \frac{2L\,\E[C_x]\,\mu_1}{\gamma_0}.
+\end{equation}
+If, additionally, $d_\mathcal{G}(e,G)$ is sub-Gaussian with parameter $\sigma$, then
+\begin{equation}
+\label{eq:risk-subg}
+\Delta\mathcal{R}
+\;\le\;
+\eta(\gamma_0) \;+\; \E\!\left[\exp\!\left(-\frac{\gamma_0^2}{8 L^2 C_x^2 \sigma^2}\right)\right].
+\end{equation}
+\end{propos}
+
+\begin{proof}
+We bound the \emph{excess} error probability per pixel; averaging over pixels and data yields $\Delta\mathcal{R}$.
+
+Let
+\[
+A \triangleq \{\hat y(G\!\cdot\!x)_p \neq y(p)\},\qquad
+B \triangleq \mathcal M_{\gamma_0}=\{\gamma_p(x)\ge \gamma_0\}.
+\]
+Since $\Omega=B\cup \neg B$ is a disjoint partition, we have the exact decomposition
+\begin{equation}\label{eq:decomp-exact}
+\Prb(A) \;=\; \Prb(A\cap B) \;+\; \Prb(A\cap \neg B).
+\end{equation}
+On the low–margin set $\neg B$, we simply upper bound
+\begin{equation}\label{eq:lowmargin-upper}
+\Prb(A\cap \neg B) \;\le\; \Prb(\neg B) \;=\; \eta(\gamma_0).
+\end{equation}
+Combining \eqref{eq:decomp-exact} and \eqref{eq:lowmargin-upper} yields the relaxed inequality used in the sequel:
+\begin{align}
+\Prb\{\hat y(G\!\cdot\!x)_p \neq y(p)\}
+&\le \eta(\gamma_0)
+   + \Prb\!\left(\hat y(G\!\cdot\!x)_p \neq y(p)\ \wedge\ B\right).
+\label{eq:decomp-relaxed}
+\end{align}
+%\emph{Equivalent conditional form (law of total probability).}
+%\[
+%\Prb(A)=\Prb(A\mid \neg B)\Prb(\neg B)+\Prb(A\mid B)\Prb(B)
+%\;\le\; \eta(\gamma_0)+\Prb(A\mid B)\Prb(B),
+%\]
+%since $\Prb(A\mid \neg B)\le 1$. The bounds \eqref{eq:decomp-relaxed} and the conditional form are identical statements.
+
+Next, define also
+\[
+D \triangleq \left\{ d_\mathcal{G}(e,G) \ge \frac{\gamma_0}{2LC_x} \right\}.
+\]
+By Lemma~\ref{lem:margin-stability}, on the good–margin set $B$ a label flip cannot happen unless the nuisance is large enough to eat a margin $\gamma_0$. Formally,
+\begin{equation}\label{eq:flip-necessity}
+B \wedge \neg D \;\Rightarrow\; \neg A
+\qquad\Longleftrightarrow\qquad
+B \wedge A \;\Rightarrow\; D ,
+\end{equation}
+i.e., \textcolor{blue}{If a pixel is both well-margin and misclassified, then the nuisance must have been large}. In set notation, \eqref{eq:flip-necessity} yields the inclusions
+\begin{equation}\label{eq:set-inclusions}
+%A \wedge B \;\subseteq\; D \wedge B \;\subseteq\; D .
+A \wedge B  \;\subseteq\; D .
+\end{equation}
+Applying the monotonicity of probability to \eqref{eq:set-inclusions} gives
+\begin{align}
+\Prb\!\big(\hat y(G\!\cdot\!x)_p \neq y(p)\ \wedge\ \mathcal M_{\gamma_0}\big)
+&= \Prb(A\wedge B) \nonumber\\
+%&\le \Prb(D\wedge B) \le \Prb(D) \nonumber\\
+& \le \Prb(D) \nonumber\\
+&= \Prb\!\left(d_\mathcal{G}(e,G) \ge \frac{\gamma_0}{2LC_x}\right).
+\label{eq:error-tail}
+\end{align}
+\emph{Please Note.} $D$ is only a \emph{necessary} condition for a flip on $B$ (large nuisance); it contains outcomes with both correct and incorrect predictions. Independence of $G$ from $(x,y)$ is \emph{not} needed for \eqref{eq:error-tail}; it is used later when we bound $\Prb(D)$ (e.g., via Markov or sub-Gaussian tails).
+
+Conditioning on $x$ and using independence (Assumption~\ref{ass:nuis}), apply Markov's inequality to the nonnegative random variable $d_\mathcal{G}(e,G)$:
+\[
+\Prb\!\left(\left.d_\mathcal{G}(e,G) \ge \frac{\gamma_0}{2 L C_x}\,\right|\,x\right)
+\le
+\frac{2 L C_x}{\gamma_0}\;\E\!\left[d_\mathcal{G}(e,G)\right]
+=
+\frac{2 L C_x}{\gamma_0}\,\mu_1.
+\]
+Taking expectation over $x$ and pixels gives
+\[
+\Prb\left(\hat y(G\!\cdot\!x)_p \neq y(p)\;\wedge\; \mathcal{M}_{\gamma_0}\right)
+\le
+\frac{2 L\,\E[C_x]\,\mu_1}{\gamma_0}.
+\]
+Adding the low-margin mass $\eta(\gamma_0)$ yields \eqref{eq:risk-markov}.
+
+If in addition $d_\mathcal{G}(e,G)$ is sub-Gaussian with parameter $\sigma$, then for any $a>0$,
+\[
+\Prb\!\left(d_\mathcal{G}(e,G)\ge a\right) \le \exp\!\left(-\frac{a^2}{2\sigma^2}\right).
+\]
+Setting $a=\gamma_0/(2 L C_x)$ in \eqref{eq:error-tail} yields
+\[
+\Prb\left(\hat y(G\!\cdot\!x)_p \neq y(p)\;\wedge\; \mathcal{M}_{\gamma_0}\right)
+\le
+\exp\!\left(-\frac{\gamma_0^2}{8 L^2 C_x^2 \sigma^2}\right).
+\]
+Averaging over $x$ and pixels and adding $\eta(\gamma_0)$ gives \eqref{eq:risk-subg}.
+\end{proof}
+
+
+\section{From Pixel Risk to IoU}
+We relate pixel error to IoU for a given foreground class $k$.
+
+\begin{definition}[Per-class IoU]
+Let $S\subset\{1,\dots,T\}\times\{1,\dots,F\}$ be the set of  foreground pixels for class $k$, with $A=|S|$ and total pixels $N=TF$. Let (True Positives) $\mathrm{TP}$, (False Positives) $\mathrm{FP}$, (Flase Negatives) $\mathrm{FN}$ be the usual counts and define $E=\mathrm{FP}+\mathrm{FN}$. The Intesction over Union(IoU) is
+\[
+\mathrm{IoU}_k = \frac{\mathrm{TP}}{\mathrm{TP}+\mathrm{FP}+\mathrm{FN}}.
+\]
+\end{definition}
+
+\begin{lemma}[IoU lower bound via total pixel error]\label{lem:iou-hamm}
+Let $A=|S|$ be the number of foreground (GT) pixels for class $k$,
+and let $\mathrm{TP},\mathrm{FP},\mathrm{FN}$ be the usual counts with
+$E=\mathrm{FP}+\mathrm{FN}$. Then
+\begin{equation}\label{eq:iou-identity}
+\mathrm{IoU}_k
+=\frac{\mathrm{TP}}{\mathrm{TP}+\mathrm{FP}+\mathrm{FN}}
+=\frac{A-\mathrm{FN}}{A+\mathrm{FP}}
+\;\ge\; \frac{A-E}{A+E}.
+\end{equation}
+Moreover, if $E\le A$, then
+\begin{equation}\label{eq:iou-linear}
+\mathrm{IoU}_k \;\ge\; \frac{A-E}{A+E}
+\;=\; 1-\frac{2E}{A+E}
+\;\ge\; 1-\frac{2E}{A}.
+\end{equation}
+In normalized form $e=E/N$ and $\alpha=A/N$,
+\begin{equation}\label{eq:iou-norm}
+\mathrm{IoU}_k \;\ge\; \frac{\alpha - e}{\alpha + e}
+\;\ge\; 1-\frac{2e}{\alpha}\qquad(\text{if } e\le \alpha).
+\end{equation}
+\end{lemma}
+
+\begin{proof}
+First, since $A=\mathrm{TP}+\mathrm{FN}$, we have $\mathrm{TP}=A-\mathrm{FN}$ and
+\[
+\mathrm{TP}+\mathrm{FP}+\mathrm{FN}
+=(A-\mathrm{FN})+\mathrm{FP}+\mathrm{FN}=A+\mathrm{FP},
+\]
+which gives the identity in \eqref{eq:iou-identity}.
+
+For the bound, observe that $\mathrm{FP}\ge 0$ implies
+\[
+A-\mathrm{FN} \;\ge\; A-(\mathrm{FN}+\mathrm{FP}) = A-E,
+\]
+and $\mathrm{FN}\ge 0$ implies
+\[
+A+\mathrm{FP} \;\le\; A+(\mathrm{FP}+\mathrm{FN}) = A+E.
+\]
+With a larger numerator and a smaller denominator, the fraction increases, hence
+\[
+\frac{A-\mathrm{FN}}{A+\mathrm{FP}} \;\ge\; \frac{A-E}{A+E},
+\]
+proving the inequality in \eqref{eq:iou-identity}.
+
+For \eqref{eq:iou-linear}, note that
+\[
+\frac{A-E}{A+E}=1-\frac{2E}{A+E}.
+\]
+If additionally $E\le A$, then $A+E\ge A$ so $\frac{1}{A+E}\le \frac{1}{A}$ and
+\[
+1-\frac{2E}{A+E} \;\ge\; 1-\frac{2E}{A}.
+\]
+Dividing numerator and denominator by $N$ yields \eqref{eq:iou-norm}.
+\end{proof}
+
+\begin{remark}
+The exact identity is $\mathrm{IoU}_k=(A-\mathrm{FN})/(A+\mathrm{FP})$.
+The bound $\mathrm{IoU}_k\ge (A-E)/(A+E)$ is conservative but convenient
+because it depends only on the \emph{total} pixel error $E=\mathrm{FP}+\mathrm{FN}$.
+\end{remark}
+
+\begin{propos}[IoU-drop bound]\label{thm:iou-drop}
+Let $e_0$ be the baseline pixel error rate for class $k$ and $e_1=e_0+\Delta\mathcal{R}_k$ the error rate after the nuisance. Define $\alpha_k=A/N$ for class $k$. Then
+\begin{equation}
+\label{eq:iou-drop-exact}
+\mathrm{IoU}^{\text{after}}_k \;\ge\; \frac{\alpha_k - e_1}{\alpha_k + e_1},
+\quad
+\mathrm{IoU}^{\text{before}}_k \;\ge\; \frac{\alpha_k - e_0}{\alpha_k + e_0}.
+\end{equation}
+Hence the IoU drop $\Delta\mathrm{IoU}_k \triangleq \mathrm{IoU}^{\text{before}}_k - \mathrm{IoU}^{\text{after}}_k$ satisfies
+\begin{equation}
+\label{eq:iou-drop-lips}
+\Delta\mathrm{IoU}_k
+\;\le\;
+\frac{2\alpha_k}{(\alpha_k + e_0)^2}\;\Delta\mathcal{R}_k.
+\end{equation}
+\end{propos}
+\begin{proof}
+The lower bounds in \eqref{eq:iou-drop-exact} are direct from Lemma~\ref{lem:iou-hamm}. Define $f(e)=\frac{\alpha_k - e}{\alpha_k + e}$ for $e\in[0,\alpha_k)$. Then $f$ is differentiable with
+\[
+f'(e) = -\frac{2\alpha_k}{(\alpha_k + e)^2} \quad\text{and}\quad f \text{ is decreasing in } e.
+\]
+By the mean value theorem, for some $\xi\in[e_0,e_1]$,
+\[
+f(e_0)-f(e_1) = -f'(\xi)\,(e_1-e_0)
+= \frac{2\alpha_k}{(\alpha_k + \xi)^2}\,\Delta\mathcal{R}_k
+\le \frac{2\alpha_k}{(\alpha_k + e_0)^2}\,\Delta\mathcal{R}_k,
+\]
+since $(\alpha_k+\xi)\ge (\alpha_k+e_0)$. This is \eqref{eq:iou-drop-lips}.
+\end{proof}
+
+\begin{corollary}[Combined action, \( g \in G\) $\Rightarrow$ IoU bound]\label{cor:combined}
+Combining propos~\ref{thm:risk-inflation} (Markov form) with propos~\ref{thm:iou-drop} gives, for any $\gamma_0>0$,
+\begin{equation}
+\label{eq:combined-markov}
+\Delta\mathrm{IoU}_k
+\;\le\;
+\frac{2\alpha_k}{(\alpha_k + e_0)^2}
+\left(
+\eta_k(\gamma_0) + \frac{2 L\,\E[C_x]\,\mu_1}{\gamma_0}
+\right).
+\end{equation}
+Under the sub-Gaussian tail, we similarly obtain
+\begin{equation}
+\label{eq:combined-subg}
+\Delta\mathrm{IoU}_k
+\;\le\;
+\frac{2\alpha_k}{(\alpha_k + e_0)^2}
+\left(
+\eta_k(\gamma_0) + \E\!\left[e^{-\frac{\gamma_0^2}{8 L^2 C_x^2 \sigma^2}}\right]
+\right).
+\end{equation}
+Averaging over classes yields the mIoU version.
+\end{corollary}
+
+\iffalse
+\section{Estimating the Constants in Practice (Brief)}
+All terms are measurable from a trained model and the STFT front-end:
+\begin{itemize}
+\item $L$: product of spectral norms of convolution layers (via power iteration).
+\item $C_x$: finite-difference sensitivity along group generators (tiny time/frequency shifts, small scale, small shear).
+\item $\gamma_0$, $\eta(\gamma_0)$: per-pixel logit margins on a validation set; choose $\gamma_0$ as a quantile, compute the fraction below it.
+\item $\mu_1$ (and $\sigma$): empirical mean (and SD) of $d_\mathcal{G}(e,G)$ drawn from measured timing/CFO/chirp-rate jitter or calibrated augmentations.
+\end{itemize}
+\fi
+
+
+\bibliographystyle{IEEEtran}
+\begin{thebibliography}{99}
+%\bibitem{Bietti2019}
+%Bietti, Alberto and Julien Mairal. “Group Invariance and Stability to Deformations of Deep Convolutional Representations.” Journal of Machine Learning Research 20 (2019) 1-49 
+
+
+\bibitem{Tsuzuku2018}
+Yusuke Tsuzuku, Issei Sato, and Masashi Sugiyama. 2018. Lipschitz-margin training: scalable certification of perturbation invariance for deep neural networks. In Proceedings of the 32nd International Conference on Neural Information Processing Systems (NIPS'18). Curran Associates Inc., Red Hook, NY, USA, 6542–6551.
+
+%\bibitem{UCDavisMath}
+%Theorem 3.45 \url{https://www.math.ucdavis.edu/~hunter/pdes/ch3.pdf}
+
+\bibitem{CisseSec3.3}
+Moustapha Cisse, Piotr Bojanowski, Edouard Grave, Yann Dauphin, and Nicolas Usunier. 2017. Parseval networks: improving robustness to adversarial examples. In Proceedings of the 34th International Conference on Machine Learning - Volume 70 (ICML'17). JMLR.org, 854–863.
+
+
+\bibitem{SubGaussian}
+\url{https://www.math.uci.edu/~rvershyn/papers/HDP-book/HDP-2.pdf}
+
+\bibitem{Assump1}
+\url{https://arxiv.org/pdf/math/0305427#:~:text=but%20quite%20useful%20result%20which,For%20a%20di%EF%AC%80erentiable}
+
+
+  
+\end{thebibliography}
+
+\end{document}
