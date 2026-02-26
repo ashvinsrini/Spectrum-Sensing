@@ -30,10 +30,10 @@ function [f0Map, bandsTrueHz, labelsTrue] = allocateBandsNumeric(presentNames, B
             end
 
             if ok
-                used(end+1,:) = [fL fH]; %#ok<AGROW>
+                used(end+1,:) = [fL fH]; 
                 f0Map.(char(tech)) = fc;
-                bandsTrueHz(end+1,:) = [fL fH]; %#ok<AGROW>
-                labelsTrue(end+1,1)  = string(tech); %#ok<AGROW>
+                bandsTrueHz(end+1,:) = [fL fH]; 
+                labelsTrue(end+1,1)  = string(tech); 
                 break;
             end
         end

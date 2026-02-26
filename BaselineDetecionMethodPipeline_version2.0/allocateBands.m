@@ -34,10 +34,10 @@ function [f0Map, bandsTrue] = allocateBands(presentNames, BW, fMin, fMax, guardH
             end
 
             if ok
-                used(end+1,:) = [fL fH]; %#ok<AGROW>
+                used(end+1,:) = [fL fH]; 
                 f0Map.(tech) = fc;
 
-                bandsTrue(end+1,:) = [string(fL), string(fH), string(tech)]; %#ok<AGROW>
+                bandsTrue(end+1,:) = [string(fL), string(fH), string(tech)]; 
                 break;
             end
         end

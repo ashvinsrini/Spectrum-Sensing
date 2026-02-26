@@ -20,7 +20,7 @@ snrWLAN_dB = 0;
 % Sub-band centers (Hz) within [-150..150] MHz
 f0_NR   = -40e6;
 f0_LTE  = 10e6;
-f0_WLAN = +90e6;
+f0_WLAN = +10e6;
 
 % Approx occupied bandwidths used for label mask only (Hz)
 BW_NR   = 20e6;
@@ -241,8 +241,8 @@ xRADAR_shift = xRADAR_bb .* exp(1i*2*pi*(f0_RADAR/FsCommon)*n);
 %% =========================================================
 %  5) Composite xMix: Noise + NRband + LTEband + WLANband (0..40 ms)
 % =========================================================
-%xMix = noise + xNR_shift + xLTE_shift + xWLAN_shift;
-xMix = noise + xNR_shift + xLTE_shift+ xRADAR_shift;
+xMix = noise + xNR_shift + xWLAN_shift;
+%xMix = noise + xNR_shift + xLTE_shift+ xRADAR_shift;
 %% =========================================================
 %  6) Spectrogram (freq on x, time on y) and label mask
 % =========================================================
@@ -567,4 +567,46 @@ end
 
 
 
+% ===== Spectrogram with detected stripes + predicted labels (overlay) =====
+figure('Color','w');
+imagesc(f/1e6, t*1e3, Sdb.'); axis xy;
+xlabel('Frequency (MHz)'); ylabel('Time (ms)');
+title('Spectrogram with detected stripes + predicted labels');
+colorbar;
+hold on;
 
+% If you want fixed x/y limits, uncomment and set as needed:
+% xlim([-150 150]); ylim([0 40]);
+
+yl = ylim;                      % [ymin ymax] in ms
+yr = yl(2) - yl(1);
+yText = yl(2) - 0.02*yr;         % label near the top
+
+% Ensure bands are sorted left->right (optional but nice)
+bandsHz = sortrows(bandsHz,1);
+
+for k = 1:size(bandsHz,1)
+    xL = bandsHz(k,1)/1e6;
+    xH = bandsHz(k,2)/1e6;
+
+    % White dashed (use ':' for dotted if you prefer)
+    plot([xL xL], yl, 'w--', 'LineWidth', 2);
+    plot([xH xH], yl, 'w--', 'LineWidth', 2);
+
+    % Center label
+    xMid = 0.5*(xL + xH);
+
+    % If stripeLabels is string array, this is fine; otherwise wrap with char(...)
+    lab = stripeLabels(k);
+
+    text(xMid, yText, lab, ...
+        'HorizontalAlignment','center', ...
+        'VerticalAlignment','top', ...
+        'FontWeight','bold', ...
+        'Color','k', ...
+        'BackgroundColor','y', ...
+        'Margin', 2);
+end
+
+set(gca,'Layer','top');   % keep lines/text above the image
+hold off;

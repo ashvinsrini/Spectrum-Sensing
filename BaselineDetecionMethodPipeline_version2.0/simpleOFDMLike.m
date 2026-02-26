@@ -16,6 +16,6 @@ function x = simpleOFDMLike(Fs, Nfft, Nsc, Nsym)
     for s = 1:Nsym
         xt = ifft(ifftshift(X(:,s)), Nfft);
         cp = (s==1)*cp1 + (s>1)*cpr;
-        x = [x; xt(end-cp+1:end); xt]; %#ok<AGROW>
+        x = [x; xt(end-cp+1:end); xt]; 
     end
 end

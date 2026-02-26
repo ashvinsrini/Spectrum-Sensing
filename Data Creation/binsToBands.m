@@ -8,7 +8,7 @@ function bandsHz = binsToBands(fHz, occ)
         if ~occ(i), i = i + 1; continue; end
         j = i;
         while j <= n && occ(j), j = j + 1; end
-        bandsHz(end+1,:) = [fHz(i) fHz(j-1)]; %#ok<AGROW>
+        bandsHz(end+1,:) = [fHz(i) fHz(j-1)]; 
         i = j;
     end
 end
