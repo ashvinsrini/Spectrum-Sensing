@@ -58,18 +58,6 @@ genrateSpectogram_WithChannelImparimentsPlusAWGN.m
 This folder contains the structured experimental pipeline used for
 large-scale simulations.
 
-### Original Experimental Configuration
-
--   Number of spectrogram frames: 2000
--   SNR range: \[0, 10, 20, 30, 40\] dB
--   Sampling rate: 61.44 MHz
--   Frame duration: 40 ms
-
-The uploaded template version is configured for demonstration
-purposes: - Sampling rate: 300 MHz - Fixed SNR - 180 frames
-
-To reproduce the full experimental setup, these parameters should be
-restored.
 
 ### Entry Script
 
