@@ -27,31 +27,30 @@ Each module is described below.
 
 ## 1. Baseline Detection
 
-This module provides a reference implementation of a classical spectrum
-sensing pipeline. It demonstrates spectrogram generation for multiple
-wireless technologies and performs stripe-level detection using energy
-and cyclostationary features.
+This module provides a reference implementation of a classical wideband spectrum sensing pipeline. It demonstrates spectrogram generation for multiple wireless technologies and performs stripe-level detection using energy and cyclostationary style features.
 
 ### Technologies Supported
 
--   WLAN (via `wlanNonHTConfig`)
--   LTE (via `lteRMCDL`)
--   NR (via 5G NR Toolbox)
--   RADAR (via Phased Array System Toolbox)
+- WLAN, generated using `wlanNonHTConfig` and `wlanWaveformGenerator`
+- LTE, generated using `lteRMCDL` and `lteRMCDLTool`
+- NR, generated using the 5G Toolbox NR OFDM chain
+- RADAR, generated using `phased.LinearFMWaveform`
+
+### Channel Impairments and Noise
+
+In addition to the clean baseline examples, the module includes a script that adds realistic reception effects. Each waveform is impaired using technology-specific fading models and Doppler, and the final wideband mixture is corrupted by AWGN at a target SNR.
 
 ### Important Notes
 
--   The template scripts use a default sampling rate of **300 MHz**.
--   For full experimental reproduction, the sampling rate should be set
-    to **61.44 MHz**, with corresponding center frequencies and
-    bandwidth parameters updated accordingly.
+- The template scripts use a default sampling rate of **300 MHz**.
+- For full experimental reproduction, the sampling rate should be set to **61.44 MHz**, and the center frequencies and bandwidth parameters should be updated accordingly.
+- The channel-impaired script uses a wideband sampling rate of **100 MHz** by default, and you may change this depending on the desired frequency span.
 
-### Entry Script
+### Entry Scripts
 
-``` matlab
+```matlab
 generate_spectrumSensingBaseline.m
-```
-
+genrateSpectogram_WithChannelImparimentsPlusAWGN.m
 ------------------------------------------------------------------------
 
 ## 2. Baseline Detection Method Pipeline (Version 2.0)
