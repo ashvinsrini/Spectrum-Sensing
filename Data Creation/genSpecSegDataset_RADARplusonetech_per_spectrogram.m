@@ -83,7 +83,7 @@ stftHop  = 4096;
 stftNfft = 4096;
 
 %% -------- FAST per-stripe processing: DDC + decimate --------
-% (kept as-is; unused if you don't run baseline)
+% (kept as-is; unused if   don't run baseline)
 FsProc_des = 30e6;
 D = max(1, round(FsCommon/FsProc_des));
 FsProc = FsCommon / D;
@@ -101,7 +101,7 @@ dec15 = dsp.FIRDecimator(D, h15);
 n = (0:Ntotal-1).';  % oscillator index
 
 %% -------- CP lag definitions (self-contained) --------
-% (kept as-is; unused if you don't run baseline)
+% (kept as-is; unused if   don't run baseline)
 FsWLAN_ref   = 20e6;
 NfftWLAN_ref = 64;
 
@@ -335,7 +335,7 @@ for i = 1:Nmc
     optsRadarAmp.dilateRad      = 0;     % IMPORTANT: keep 0 to avoid thickening into horizontals
     
     optsRadarAmp.collapseRuns   = true;  % <<< NEW: remove horizontal bars
-    optsRadarAmp.keepPerRun     = 1;     % keep 1 pixel per horizontal run (can set 2 if you want)
+    optsRadarAmp.keepPerRun     = 1;     % keep 1 pixel per horizontal run (can set 2 if   want)
     optsRadarAmp.maxKeepPerRow  = 4;     % cap number of pixels per time row (safety)
     
     maskNtNf = refineRadarMaskAmp_local(maskNtNf, Sdb, trueOfFreq, labelVals, optsRadarAmp);
@@ -394,7 +394,7 @@ for i = 1:Nmc
         continue;
     end
 
-    % If you keep doDatasetOnly=false and want baseline ROC/CM,
+    % If   keep doDatasetOnly=false and want baseline ROC/CM,
     % paste the original baseline code below unchanged.
 end
 
