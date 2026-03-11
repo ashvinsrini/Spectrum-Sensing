@@ -1,6 +1,6 @@
 %% ==============================================================
-%  BATCH EXTENSION (10 scenes) ON TOP OF YOUR WORKING SCRIPT
-%  - Keeps your per-scene operations the same
+%  BATCH EXTENSION (10 scenes) ON TOP OF   WORKING SCRIPT
+%  - Keeps   per-scene operations the same
 %  - Adds ONLY: loop + overlapFlag logic + mask saving + confusion matrix
 %
 %  Outputs saved to: ./batch_outputs_baseline/
@@ -51,7 +51,7 @@ stftWin  = 4096;
 stftHop  = 4096;
 stftNfft = 4096;
 
-%% -------------------- Channel fading knobs (already in your code) --------------------
+%% -------------------- Channel fading knobs (already in   code) --------------------
 useFading  = true;
 DopplerMin = 0; DopplerMax = 500;
 
@@ -74,7 +74,7 @@ if ~exist(outDir,'dir'), mkdir(outDir); end
 
 % Class IDs used in masks:
 % 0=Noise, 1=NR, 2=LTE, 3=WLAN, 4=RADAR
-classNames = {'LTE','NR','Noise','RADAR','WLAN'};      % order for confusion matrix plot (like your example)
+classNames = {'LTE','NR','Noise','RADAR','WLAN'};      % order for confusion matrix plot (like   example)
 orderIDs   = [2 1 0 4 3];                               % LTE, NR, Noise, RADAR, WLAN
 
 C = zeros(numel(orderIDs), numel(orderIDs));            % accumulate confusion counts over all scenes
@@ -86,10 +86,10 @@ for sceneIdx = 1:numScenes
     % NEW: decide which comm technologies are present + centers
     sceneCfg = makeSceneConfig(sceneIdx, overlapFlag, f0_NR0, f0_LTE0, f0_WLAN0, f0_RADAR0, jitterHz);
 
-    % NEW: per-scene Doppler (still within your range)
+    % NEW: per-scene Doppler (still within   range)
     DopplerHz = DopplerMin + (DopplerMax-DopplerMin)*rand;
 
-    % -------------------- YOUR ORIGINAL PER-SCENE CODE STARTS --------------------
+    % --------------------   ORIGINAL PER-SCENE CODE STARTS --------------------
     % (Only tiny additions: include flags + center values from sceneCfg + GT/pred masks + saving)
 
     f0_NR   = sceneCfg.f0_NR;
@@ -159,7 +159,7 @@ for sceneIdx = 1:numScenes
     xNR   = single(xNR);
     xLTE  = single(xLTE);
 
-    %% -------------------- Apply fading at FsCommon (as in your working code) --------------------
+    %% -------------------- Apply fading at FsCommon (as in   working code) --------------------
     if useFading
         xNR   = applyCommRayleighEPA_FsCommon(xNR,   FsCommon, DopplerHz, 1000 + sceneIdx*10 + 1);
         xLTE  = applyCommRayleighEPA_FsCommon(xLTE,  FsCommon, DopplerHz, 1000 + sceneIdx*10 + 2);
@@ -292,7 +292,7 @@ for sceneIdx = 1:numScenes
     radarActiveTF = activeToTimeBins(active, Ntotal, stftWin, stftHop, Nt);
     maskGT(radarActiveTF, idxRAD) = 4;
 
-    % ---- (Your original plots still work; batch saving uses RGB images below) ----
+    % ---- (  original plots still work; batch saving uses RGB images below) ----
 
     %% ==========================================================
     %  Robust occupied-band detection (UNCHANGED)
@@ -462,7 +462,7 @@ for sceneIdx = 1:numScenes
 
   
     % ===================== Robust gtIdx + scoreMaps =====================
-    iScene = sceneIdx;   % use your loop index
+    iScene = sceneIdx;   % use   loop index
     
     % --- Decide GT label convention (0..K-1 or 1..K) ---
     minL = double(min(maskGT(:)));
@@ -514,8 +514,8 @@ end
 %  Requires per-pixel scoreMaps for ROC (H x W x K)
 %% ==========================================================
 
-% --- Where your per-scene .mat files are ---
-% outDir must already exist in your main script
+% --- Where   per-scene .mat files are ---
+% outDir must already exist in   main script
 scoreFiles = dir(fullfile(outDir, 'scene_*_scores.mat'));
 
 if isempty(scoreFiles)
@@ -723,7 +723,7 @@ fprintf('\nDone. Outputs saved in:\n  %s\n', outDir);
 
 function sceneCfg = makeSceneConfig(sceneIdx, overlapFlag, f0_NR0, f0_LTE0, f0_WLAN0, f0_RADAR0, jitterHz)
 % overlapFlag=false (default):
-%   - keep 3 stripes total (for your Kwant=3): LTE + (NR or WLAN) + RADAR
+%   - keep 3 stripes total (for   Kwant=3): LTE + (NR or WLAN) + RADAR
 % overlapFlag=true:
 %   - LTE + NR + WLAN (NR and WLAN overlap due to same nominal center) + RADAR -> still ~3 bands
 
@@ -853,7 +853,7 @@ end
 
 function y = applyCommRayleighEPA_FsCommon(x, Fs, dopplerHz, seed)
 % Applies a lightweight multipath Rayleigh fading (EPA taps) at FsCommon.
-% You still do SNR normalization later, so this is safe for your pipeline.
+% You still do SNR normalization later, so this is safe for   pipeline.
 
     x = x(:);
 
@@ -993,4 +993,5 @@ function [fprU, tprU] = makeUniqueRocXY(fpr, tpr)
         fprU = [fprU; 1];
         tprU = [tprU; tprU(end)];   % keep last TPR
     end
+
 end
