@@ -20,7 +20,7 @@ maskHdfDir = fullfile(outRoot,'maskhdf');    ensureDir_local(maskHdfDir);
 % Save options
 outSize = [256 256];             % [] to keep native size (Nt x Nf)
 useFixedCLim = true;             % fix color scaling for consistent appearance
-clim_dB = [-40 60];              % adjust to taste (like your plot's range)
+clim_dB = [-40 60];              % adjust to taste (like   plot's range)
 cmap = parula(256);              % colormap for saving RGB PNG
 
 % ---- Desired output label values (uint8) ----
@@ -282,12 +282,12 @@ for i = 1:Nmc
     xMix = single(xMix(:));
 
 
-    % 4) Spectrogram (same as your pipeline)
+    % 4) Spectrogram (same as   pipeline)
     [Sdb, fAxis, tAxis] = mySpectrogramDB(xMix, FsCommon, stftWin, stftHop, stftNfft);
     Nf = numel(fAxis);
     Nt = numel(tAxis);
 
-    % 5) Ground-truth label per freq bin (0..4 using your classId)
+    % 5) Ground-truth label per freq bin (0..4 using   classId)
     trueOfFreq = zeros(Nf,1,'uint8');   % 0=noise, 1..4 for [NR LTE WLAN RADAR]
     for kT = 1:size(bandsTrueHz,1)
         fL = bandsTrueHz(kT,1);  fH = bandsTrueHz(kT,2);
@@ -341,7 +341,7 @@ for i = 1:Nmc
     maskNtNf = refineRadarMaskAmp_local(maskNtNf, Sdb, trueOfFreq, labelVals, optsRadarAmp);
 
 
-    % 7) Colored spectrogram PNG like your debug plot (uses Sdb.')
+    % 7) Colored spectrogram PNG like   debug plot (uses Sdb.')
     specRGB = SdbToRGB_local(Sdb, cmap, useFixedCLim, clim_dB); % Nt x Nf x 3 (uint8)
 
     % Match axis xy look
