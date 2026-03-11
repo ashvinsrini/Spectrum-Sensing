@@ -23,7 +23,7 @@ maskHdfDir = fullfile(outRoot,'maskhdf');    ensureDir_local(maskHdfDir);
 % Save options
 outSize = [256 256];             % [] to keep native size (Nt x Nf)
 useFixedCLim = true;             % fix color scaling for consistent appearance
-clim_dB = [-40 60];              % adjust to taste (like your plot's range)
+clim_dB = [-40 60];              % adjust to taste (like   plot's range)
 cmap = parula(256);              % colormap for saving RGB PNG
 
 % ---- Desired output label values (uint8) ----
@@ -335,7 +335,7 @@ for i = 1:Nmc
     xMix = single(xMix(:));
 
 
-    % 4) Spectrogram (same as your pipeline)
+    % 4) Spectrogram (same as   pipeline)
     [Sdb, fAxis, tAxis] = mySpectrogramDB(xMix, FsCommon, stftWin, stftHop, stftNfft);
     Nf = numel(fAxis);
     Nt = numel(tAxis);
@@ -401,7 +401,7 @@ for i = 1:Nmc
     
     maskNtNf = repmat(maskOfFreq_png, Nt, 1); % Nt x Nf
 
-    % 7) Colored spectrogram PNG like your debug plot (uses Sdb.')
+    % 7) Colored spectrogram PNG like   debug plot (uses Sdb.')
     specRGB = SdbToRGB_local(Sdb, cmap, useFixedCLim, clim_dB); % Nt x Nf x 3 (uint8)
 
     % Match axis xy look
